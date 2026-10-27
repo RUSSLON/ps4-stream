@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "PS4 Stream — Render Edition",
+  "version": "0.2.0",
+  "description": "Отправка прямого видео и субтитров из HDrezka на персональную страницу Render для PS4.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://*.onrender.com/*",
+    "https://hdrezka-fly.net/*", "https://*.hdrezka-fly.net/*",
+    "https://hdrezka.ag/*", "https://*.hdrezka.ag/*",
+    "https://rezka.ag/*", "https://*.rezka.ag/*",
+    "https://rezka.fi/*", "https://*.rezka.fi/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
+  "content_scripts": [{
+    "matches": [
+      "https://hdrezka-fly.net/*", "https://*.hdrezka-fly.net/*",
+      "https://hdrezka.ag/*", "https://*.hdrezka.ag/*",
+      "https://rezka.ag/*", "https://*.rezka.ag/*",
+      "https://rezka.fi/*", "https://*.rezka.fi/*"
+    ],
+    "js": ["adapter.js", "content.js"],
+    "css": ["content.css"],
+    "run_at": "document_idle"
+  }],
+  "options_page": "options.html",
+  "action": {"default_title": "PS4 Stream — настройки", "default_popup": "options.html"},
+  "background": {"service_worker": "background.js"}
+}

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PS4 Stream</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#060912;color:#f9fbff;font-family:Arial,Helvetica,sans-serif;height:100%;overflow:hidden}
+#app{position:relative;width:100%;height:100%;background:radial-gradient(ellipse at 50% 60%,#18223c 0%,#060912 72%)}
+#video{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain;background:transparent}
+#head{position:absolute;left:4.5%;right:4.5%;top:4%;display:flex;justify-content:space-between;align-items:start;gap:15px;pointer-events:none;text-shadow:0 2px 10px #000}
+#brand{font-weight:bold;color:#c5baff;font-size:12px;letter-spacing:2.2px}#name{font-size:24px;font-weight:bold;margin-top:8px;max-width:850px}#quality{color:#a5b2ce;letter-spacing:1px;font-size:14px;text-align:right}
+#empty{position:absolute;top:41%;width:100%;text-align:center;pointer-events:none}#empty .large{font-size:31px;font-weight:bold}#empty .hint{font-size:17px;color:#aeb8ce;margin-top:13px}
+#caption{position:absolute;bottom:20%;left:10%;width:80%;text-align:center;pointer-events:none;font-size:25px;font-weight:bold;line-height:1.35;text-shadow:-2px -2px 3px #000,2px 2px 3px #000,0 0 8px #000;white-space:pre-line}
+#bar{position:absolute;left:3.5%;right:3.5%;bottom:4%;padding:22px 22px 19px;border:1px solid #39435c;background:rgba(13,18,34,.91);border-radius:19px;box-shadow:0 14px 55px #0009}
+#seek{display:block;width:100%;height:12px;cursor:pointer;accent-color:#8b75ff;margin:1px 0 14px}
+#actions{display:flex;justify-content:space-between;align-items:center;gap:15px}
+#left,#right{display:flex;align-items:center;gap:10px}
+button{display:inline-block;border:1px solid #445273;background:#202942;color:#f0f2ff;border-radius:12px;min-width:57px;height:48px;padding:0 15px;font-size:20px;font-weight:bold;cursor:pointer}
+button:focus,button:hover{background:#463d81;outline:2px solid #8a7bff;outline-offset:2px}
+button.primary{background:#7462ed;border-color:#a293ff}button.active{border-color:#a293ff;background:#494273}
+#clock{font-size:15px;color:#d0d7eb;padding-left:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#sub-menu{position:absolute;right:30px;bottom:89px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;min-width:215px;background:#171f35;box-shadow:0 14px 32px #000b;display:none}
+#sub-menu.show{display:block}#sub-menu .menu-title{font-size:12px;letter-spacing:1.5px;color:#aab5d4;margin:5px 5px 9px}
+#sub-menu button{display:block;text-align:left;margin:4px 0;width:100%;font-size:15px;height:40px}
+#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
+@media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <video id="video" preload="auto" playsinline webkit-playsinline></video>
+  <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· DIRECT</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
+  <div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Управление на PS4, без посредника после загрузки страницы</div></div>
+  <div id="caption"></div><div id="message" role="status"></div>
+  <div id="bar">
+    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Перемотка">
+    <div id="actions">
+      <div id="left">
+        <button id="back" title="Назад 10 сек" aria-label="Назад на 10 секунд">↶10</button>
+        <button id="play" class="primary" title="Воспроизведение" aria-label="Плей пауза">▶</button>
+        <button id="forward" title="Вперёд 10 сек" aria-label="Вперёд на 10 секунд">10↷</button>
+        <span id="clock">00:00 / --:--</span>
+      </div>
+      <div id="right"><button id="cc" title="Субтитры" aria-label="Выбрать субтитры">CC</button><button id="full" title="Полный экран" aria-label="Полный экран">⛶</button></div>
+    </div>
+    <div id="sub-menu"><div class="menu-title">СУБТИТРЫ</div><div id="sub-items"></div></div>
+  </div>
+</div>
+<!--PS4_DATA-->
+<script>
+(function(){
+  'use strict';
+  function get(id){return document.getElementById(id)}
+  var data; try{data=JSON.parse(get('ps4-payload').textContent)}catch(e){get('message').textContent='Ошибка данных';return}
+  var video=get('video'), playing=get('play'),seek=get('seek'),empty=get('empty'),caption=get('caption'),subMenu=get('sub-menu');
+  get('name').textContent=data.title||'Видео';get('quality').textContent=data.quality||'';
+  video.src=data.url;video.load();
+  function fmt(sec){if(!isFinite(sec))return '--:--';sec=Math.max(0,Math.floor(sec));var h=Math.floor(sec/3600),m=Math.floor(sec/60)%60,s=sec%60;return (h?h+':':'')+(h?('0'+m).slice(-2):m)+':'+('0'+s).slice(-2)}
+  function progress(){
+    var duration=video.duration;get('clock').textContent=fmt(video.currentTime)+' / '+fmt(duration);
+    if(!seek.getAttribute('data-drag')&&isFinite(duration)&&duration>0)seek.value=String(Math.round(video.currentTime/duration*1000));
+    showCaption();
+  }
+  function state(){playing.textContent=video.paused?'▶':'❚❚';empty.style.display=video.paused&&video.currentTime===0?'block':'none';progress()}
+  function toggle(){get('message').textContent='';if(video.paused){var p=video.play();if(p&&p.catch)p.catch(function(){get('message').textContent='Не удалось начать воспроизведение. Проверь поддержку формата и доступность прямой ссылки на PS4.'})}else video.pause()}
+  playing.onclick=toggle;video.onclick=toggle;
+  get('back').onclick=function(){try{video.currentTime=Math.max(0,video.currentTime-10)}catch(e){}};
+  get('forward').onclick=function(){try{video.currentTime=Math.min(isFinite(video.duration)?video.duration:1e14,video.currentTime+10)}catch(e){}};
+  seek.oninput=function(){seek.setAttribute('data-drag','yes')};
+  seek.onchange=function(){var duration=video.duration;if(isFinite(duration)&&duration>0)video.currentTime=Number(seek.value)*duration/1000;seek.removeAttribute('data-drag')};
+  get('full').onclick=function(){
+    var app=get('app');var req=app.requestFullscreen||app.webkitRequestFullscreen||app.mozRequestFullScreen;
+    if(req){try{req.call(app)}catch(e){}}else if(video.webkitEnterFullscreen){try{video.webkitEnterFullscreen()}catch(e){}}
+  };
+  var tracks=[{lang:'Выключены',cues:[]}];
+  function time(s){var a=s.trim().replace(',', '.').split(':'), n=0;for(var i=0;i<a.length;i++)n=n*60+parseFloat(a[i]);return n}
+  function parseSrtVtt(text){
+    var blocks=String(text||'').replace(/\r/g,'').split(/\n\s*\n/),cues=[];
+    for(var i=0;i<blocks.length;i++){
+      var lines=blocks[i].split('\n'),index=-1,match;
+      for(var k=0;k<lines.length;k++)if((match=lines[k].match(/((?:\d\d:)?\d\d:\d\d[,.]\d{1,3})\s*-->\s*((?:\d\d:)?\d\d:\d\d[,.]\d{1,3})/))){index=k;break}
+      if(index<0)continue;
+      var start=time(match[1]),end=time(match[2]);if(!isFinite(start)||!isFinite(end))continue;
+      var body=lines.slice(index+1).join('\n').replace(/<[^>]+>/g,'').replace(/\{\\[^}]+\}/g,'').trim();
+      cues.push({start:start,end:end,text:body});
+    }
+    return cues.sort(function(a,b){return a.start-b.start});
+  }
+  var selected=0;
+  if(data.subtitles&&data.subtitles.length){for(var i=0;i<data.subtitles.length;i++){
+    var sub=data.subtitles[i];tracks.push({lang:sub.lang||('Track '+(i+1)),cues:parseSrtVtt(sub.text)});
+  }selected=tracks.length>1?1:0;}
+  function showCaption(){
+    if(!selected){caption.textContent='';return}var list=tracks[selected].cues,t=video.currentTime,low=0,high=list.length-1,found='';
+    while(low<=high){var mid=(low+high)>>1;if(list[mid].start>t)high=mid-1;else low=mid+1}
+    for(var i=Math.max(0,high-2);i<=high&&i<list.length;i++)if(list[i].start<=t&&list[i].end>=t){found=list[i].text;break}
+    caption.textContent=found;
+  }
+  function chooseTrack(index){selected=index;subMenu.className='';get('cc').className=index?'active':'';showCaption()}
+  var subItems=get('sub-items');for(var j=0;j<tracks.length;j++)(function(idx){var b=document.createElement('button');b.textContent=tracks[idx].lang;b.onclick=function(){chooseTrack(idx)};subItems.appendChild(b)})(j);
+  get('cc').className=selected?'active':'';
+  get('cc').onclick=function(){subMenu.className=subMenu.className==='show'?'':'show'};
+  video.addEventListener('timeupdate',progress);video.addEventListener('loadedmetadata',progress);video.addEventListener('durationchange',progress);
+  video.addEventListener('play',state);video.addEventListener('pause',state);video.addEventListener('ended',state);
+  video.addEventListener('error',function(){var code=video.error&&video.error.code;get('message').textContent='Видео не открылось (код '+code+'). Возможно, PS4 не поддерживает кодек, CDN требует Referer/cookie или ссылка истекла.'});
+  document.addEventListener('keydown',function(e){var key=e.key||e.keyCode;
+    if(key===' '||key==='Enter'||key===32||key===13){if(document.activeElement.tagName!=='BUTTON'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();toggle()}}
+    else if(key==='ArrowLeft'||key===37)get('back').click();else if(key==='ArrowRight'||key===39)get('forward').click();
+    else if(key==='f'||key==='F'||key===70)get('full').click();
+    else if(key==='Escape'||key===27)subMenu.className='';
+  });
+  state();
+})();
+</script>
+</body>
+</html>

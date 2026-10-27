@@ -1,0 +1,17 @@
+#ps4stream-open, #ps4stream-modal, #ps4stream-modal * {box-sizing:border-box}
+#ps4stream-open {display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:112px;background:linear-gradient(120deg,#6c4aff,#287dff);border:1px solid #96a0ff;color:#fff;cursor:pointer;border-radius:12px;padding:11px 16px;font:700 13px/1.2 Arial,sans-serif;box-shadow:0 7px 24px #574bda55;z-index:2147483645}
+#ps4stream-open.ps4-float {position:fixed;top:86px;right:25px}
+#ps4stream-open:hover {filter:brightness(1.18)}
+#ps4stream-modal {position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;background:#070b16bf;backdrop-filter:blur(7px);font-family:Arial,sans-serif;color:#f7f9ff;text-align:left}
+#ps4stream-modal .ps4-panel{background:#141927;box-shadow:0 30px 120px #000b;border:1px solid #424a65;border-radius:22px;padding:26px;width:min(480px,calc(100vw - 25px));max-height:90vh;overflow:auto;position:relative}
+#ps4stream-modal h2 {font:800 25px/1.2 Arial,sans-serif;color:#fff;margin:7px 0 6px}
+#ps4stream-modal p{color:#b4bdd1;font:14px/1.5 Arial,sans-serif;margin:7px 0 13px}
+#ps4stream-modal .ps4-kicker{font:700 11px Arial,sans-serif;letter-spacing:2px;color:#ab9bff;text-transform:uppercase}
+#ps4stream-modal .ps4-close{position:absolute;top:16px;right:16px;background:#30364b;border:0;color:#fff;border-radius:10px;width:34px;height:34px;cursor:pointer;font-size:19px}
+#ps4stream-modal .ps4-section{font:700 13px Arial,sans-serif;margin:22px 0 12px;color:#dae3ff}
+#ps4stream-modal label.ps4-option{display:flex;gap:10px;align-items:center;border:1px solid #384057;border-radius:12px;background:#20283a;padding:12px 14px;margin:8px 0;cursor:pointer;color:#f2f5ff;font:14px Arial,sans-serif}
+#ps4stream-modal input {accent-color:#8066ff}
+#ps4stream-modal .ps4-submit{width:100%;font:700 15px Arial,sans-serif;cursor:pointer;border:0;border-radius:13px;padding:15px;color:#fff;background:linear-gradient(115deg,#7257f9,#2d85ff);margin-top:15px}
+#ps4stream-modal .ps4-submit:disabled{opacity:.55;cursor:wait}
+#ps4stream-modal .ps4-feedback{background:#262f44;padding:12px;border-radius:12px;overflow-wrap:anywhere;margin-top:13px;color:#f4f6ff;line-height:1.5;font-size:13px}
+#ps4stream-modal .ps4-feedback.error{background:#50282e;color:#ffd7d9}
