@@ -42,7 +42,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
 #full.is-full .full-icon .tr{top:2px;right:2px;border-width:0 0 3px 3px}
 #full.is-full .full-icon .bl{bottom:2px;left:2px;border-width:3px 3px 0 0}
 #full.is-full .full-icon .br{bottom:2px;right:2px;border-width:3px 0 0 3px}
-#source{min-width:85px;font-size:12px;letter-spacing:.3px;padding:0 7px}#clock{font-size:15px;color:#d0d7eb;padding-left:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#clock{font-size:15px;color:#d0d7eb;padding-left:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
 #sub-menu{position:absolute;right:14px;bottom:87px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;width:375px;max-width:calc(100vw - 32px);max-height:70vh;overflow-y:auto;background:#171f35;box-shadow:0 14px 32px #000b;display:none;z-index:5}
 #sub-menu.show{display:block}#sub-menu .menu-title{font-size:12px;letter-spacing:1.5px;color:#aab5d4;margin:5px 5px 9px}
 #sub-menu button{font-size:15px;height:40px}
@@ -66,14 +66,14 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
 #app.ui-hidden #head,#app.ui-hidden #bar,#app.ui-hidden #newcode{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s linear .25s}
 #app.ui-hidden{cursor:none}
 #newcode{position:absolute;top:19px;right:25px;color:#c8bdff;font:bold 11px Arial,sans-serif;text-decoration:none;z-index:4;letter-spacing:1px}#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
-#message a{display:inline-block;margin:12px 8px;padding:10px 15px;border:1px solid #a797ff;border-radius:9px;color:#e0d9ff;text-decoration:none;background:#202942} @media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
+@media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
 </style>
 </head>
 <body>
 <div id="app">
   <video id="video" preload="auto" playsinline webkit-playsinline></video>
-  <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· CLOUD</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
-  <a href="/?new=1" id="newcode" title="Ввести другой код">НОВЫЙ КОД</a><div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Видео через Render · доступ из другой сети (эксперимент)</div></div>
+  <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· DIRECT</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
+  <a href="/?new=1" id="newcode" title="Ввести другой код">НОВЫЙ КОД</a><div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Управление на PS4, без посредника после загрузки страницы</div></div>
   <div id="caption"><span id="caption-text"></span></div><div id="message" role="status"></div>
   <div id="bar">
     <div id="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Перемотка"><div id="seek-tip" aria-hidden="true">00:00</div></div>
@@ -84,7 +84,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
         <button id="forward" title="Вперёд 10 сек" aria-label="Вперёд на 10 секунд"><span class="skip-icon forward" aria-hidden="true"><span class="skip-ten">10</span></span></button>
         <span id="clock">00:00 / --:--</span>
       </div>
-      <div id="right"><button id="source" type="button" title="Выбрать способ подключения к видео">RENDER</button><button id="cc" title="Субтитры" aria-label="Выбрать субтитры">CC</button><button id="full" title="На весь экран" aria-label="На весь экран"><span class="full-icon" aria-hidden="true"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></span></button></div>
+      <div id="right"><button id="cc" title="Субтитры" aria-label="Выбрать субтитры">CC</button><button id="full" title="На весь экран" aria-label="На весь экран"><span class="full-icon" aria-hidden="true"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></span></button></div>
     </div>
     <div id="sub-menu" role="region" aria-label="Параметры субтитров">
       <div id="sub-tabs"><button id="sub-tab-tracks" class="track-active" type="button">ЯЗЫК</button><button id="sub-tab-settings" type="button">НАСТРОЙКИ</button></div>
@@ -129,20 +129,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   document.addEventListener('touchstart',showControls,false);
   document.addEventListener('keydown',showControls,false);
   get('name').textContent=data.title||'Видео';get('quality').textContent=data.quality||'';
-  var throughRender=true;
-  var initialSource=data.url;
-  function setSource(useProxy){
-    throughRender=useProxy;
-    var address=useProxy?initialSource:(data.direct_url||initialSource);
-    get('source').textContent=useProxy?'RENDER':'ПРЯМО';
-    get('source').title=useProxy?'Через Render — нажми для прямого подключения':'Прямое CDN — нажми для режима через Render';
-    get('brand').textContent='PS4 STREAM · '+(useProxy?'CLOUD':'DIRECT');
-    get('message').textContent='';
-    video.pause();video.src=address;video.load();
-    showControls();
-  }
-  get('source').onclick=function(){setSource(!throughRender)};
-  setSource(true);
+  video.src=data.url;video.load();
   function fmt(sec){if(!isFinite(sec))return '--:--';sec=Math.max(0,Math.floor(sec));var h=Math.floor(sec/3600),m=Math.floor(sec/60)%60,s=sec%60;return (h?h+':':'')+(h?('0'+m).slice(-2):m)+':'+('0'+s).slice(-2)}
   function progress(){
     var duration=video.duration;get('clock').textContent=fmt(video.currentTime)+' / '+fmt(duration);
@@ -321,14 +308,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   updateTracks();updateSubPrefs();
   video.addEventListener('timeupdate',progress);video.addEventListener('loadedmetadata',progress);video.addEventListener('durationchange',progress);
   video.addEventListener('play',state);video.addEventListener('pause',state);video.addEventListener('ended',state);
-  video.addEventListener('error',function(){
-    var code=video.error&&video.error.code, msg=get('message');
-    msg.textContent='Ошибка воспроизведения (код '+code+'). '+(throughRender?'Проверь, доступен ли источник серверу Render.':'Прямая ссылка не работает из этой сети. Попробуй RENDER.');
-    if(throughRender){
-      var link=document.createElement('a');link.href='/api/check';link.textContent='Проверить CDN';msg.appendChild(document.createElement('br'));msg.appendChild(link);
-    }
-    showControls();
-  });
+  video.addEventListener('error',function(){var code=video.error&&video.error.code;get('message').textContent='Видео не открылось (код '+code+'). Возможно, PS4 не поддерживает кодек, CDN требует Referer/cookie или ссылка истекла.'});
   document.addEventListener('keydown',function(e){var key=e.key||e.keyCode;
     if(key===' '||key==='Enter'||key===32||key===13){if(document.activeElement.tagName!=='BUTTON'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();toggle()}}
     else if(key==='ArrowLeft'||key===37)get('back').click();else if(key==='ArrowRight'||key===39)get('forward').click();

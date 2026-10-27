@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
-"""PS4 Stream v0.4.1: browser-style CDN request + low-bandwidth Range diagnostics."""
+"""PS4 Stream v0.5: one-time PIN pairing, direct CDN playback."""
 import hmac
-import ipaddress
-import socket
-import urllib.error
-import urllib.request
 from html import escape
 import json
 import os
@@ -19,14 +15,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 TTL = 600                      # PIN and rate-limit window
-SESSION_TTL = 4 * 3600        # Needed for seeking during long films
-STREAM_CHUNK = 64 * 1024
-STREAM_SEMAPHORE = threading.BoundedSemaphore(2)
-# Deliberately narrow to avoid operating an open proxy to arbitrary URLs.
-ALLOWED_VIDEO_HOSTS = frozenset(x.strip().lower() for x in os.environ.get(
-    "VIDEO_ALLOWED_HOSTS", "stream.voidboost.one,interactive-examples.mdn.mozilla.net"
-).split(",") if x.strip())
-RANGE_PATTERN = re.compile(r"^bytes=(?:[0-9]+-[0-9]*|-[1-9][0-9]*)$")
+SESSION_TTL = 4 * 3600        # Enables refreshing the player during longer viewing
 LIMIT = 3 * 1024 * 1024
 PIN_PATTERN = re.compile(r'^[0-9]{4}$')
 TEMPLATE = Path(__file__).with_name('player.html').read_text(encoding='utf-8')
@@ -75,8 +64,6 @@ def sanitize(media):
 
 
 def render_player(media):
-    # Use the same-origin proxy by default; retain direct URL only for manual fallback.
-    media = {**media, 'url': '/api/stream', 'direct_url': media['url']}
     payload = json.dumps(media, ensure_ascii=False, separators=(',', ':'))
     # Escaping is mandatory, including when this JSON is in a non-executable script.
     for original, replacement in [('&', '\\u0026'), ('<', '\\u003c'), ('>', '\\u003e'), ('\u2028', '\\u2028'), ('\u2029', '\\u2029')]:
@@ -85,10 +72,9 @@ def render_player(media):
 
 
 def pin_page(error=''):
-    from html import escape
     alert = ('<div class="alert" role="alert">' + escape(error) + '</div>') if error else ''
     html = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PS4 Stream · Вход</title>
-<style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#090e1c;color:#f6f7ff;font-family:Arial,Helvetica,sans-serif}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 5%,#283155 0%,#090e1c 65%)}main{width:440px;max-width:calc(100% - 28px);padding:35px 32px;background:#141a2d;border:1px solid #434b70;border-radius:20px;box-shadow:0 30px 90px #0009}.logo{color:#af9aff;letter-spacing:3px;font:bold 14px Arial,sans-serif}.pill{display:inline-block;margin-top:20px;color:#9cdeb7;border:1px solid #316a53;border-radius:30px;padding:7px 11px;font-size:12px}h1{font-size:30px;line-height:1.15;margin:16px 0 9px}.sub{color:#aebbd3;line-height:1.5;margin-bottom:25px}label{display:block;font-size:13px;font-weight:bold;margin:0 0 9px}input{display:block;width:100%;font:bold 42px/1 Arial,sans-serif;text-align:center;letter-spacing:15px;color:white;background:#0b1122;border:2px solid #505d8d;border-radius:13px;padding:15px 12px;outline:none}input:focus{border-color:#ad98ff}button{width:100%;padding:17px;border:0;border-radius:12px;background:linear-gradient(110deg,#7558fa,#3c88fd);font:bold 17px Arial,sans-serif;color:#fff;cursor:pointer;margin-top:16px}button:focus{outline:3px solid #fff}.alert{color:#ffd5d7;background:#502b36;padding:12px;border-radius:9px;margin-bottom:16px;line-height:1.4}.foot{font-size:12px;color:#8d9ab5;margin-top:23px;line-height:1.5}small{display:block;color:#91a2c5;font-size:13px;margin-top:10px}</style></head><body><main><div class="logo">◈ PS4 STREAM</div><span class="pill">PLAYSTATION PLAYER</span><h1>Ввод кода</h1><p class="sub">Отправь фильм из расширения Chrome, затем введи четырёхзначный код с экрана ноутбука.</p>'''+ alert +'''<form method="post" action="/"><label for="pin">КОД ПОДКЛЮЧЕНИЯ</label><input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" placeholder="0000" autocomplete="off" required autofocus><button type="submit">Начать просмотр →</button></form><small>Код действует 10 минут и только один раз.</small><div class="foot">Если код истёк, повтори отправку из Chrome. По умолчанию видео идёт через Render. Это экспериментальный режим: видеосервер может отказать Render в доступе.</div></main></body></html>'''
+<style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#090e1c;color:#f6f7ff;font-family:Arial,Helvetica,sans-serif}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 5%,#283155 0%,#090e1c 65%)}main{width:440px;max-width:calc(100% - 28px);padding:35px 32px;background:#141a2d;border:1px solid #434b70;border-radius:20px;box-shadow:0 30px 90px #0009}.logo{color:#af9aff;letter-spacing:3px;font:bold 14px Arial,sans-serif}.pill{display:inline-block;margin-top:20px;color:#9cdeb7;border:1px solid #316a53;border-radius:30px;padding:7px 11px;font-size:12px}h1{font-size:30px;line-height:1.15;margin:16px 0 9px}.sub{color:#aebbd3;line-height:1.5;margin-bottom:25px}label{display:block;font-size:13px;font-weight:bold;margin:0 0 9px}input{display:block;width:100%;font:bold 42px/1 Arial,sans-serif;text-align:center;letter-spacing:15px;color:white;background:#0b1122;border:2px solid #505d8d;border-radius:13px;padding:15px 12px;outline:none}input:focus{border-color:#ad98ff}button{width:100%;padding:17px;border:0;border-radius:12px;background:linear-gradient(110deg,#7558fa,#3c88fd);font:bold 17px Arial,sans-serif;color:#fff;cursor:pointer;margin-top:16px}button:focus{outline:3px solid #fff}.alert{color:#ffd5d7;background:#502b36;padding:12px;border-radius:9px;margin-bottom:16px;line-height:1.4}.foot{font-size:12px;color:#8d9ab5;margin-top:23px;line-height:1.5}small{display:block;color:#91a2c5;font-size:13px;margin-top:10px}</style></head><body><main><div class="logo">◈ PS4 STREAM</div><span class="pill">PLAYSTATION PLAYER</span><h1>Ввод кода</h1><p class="sub">Отправь фильм из расширения Chrome, затем введи четырёхзначный код с экрана ноутбука.</p>'''+ alert +'''<form method="post" action="/"><label for="pin">КОД ПОДКЛЮЧЕНИЯ</label><input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" placeholder="0000" autocomplete="off" required autofocus><button type="submit">Начать просмотр →</button></form><small>Код действует 10 минут и только один раз.</small><div class="foot">Если код истёк, повтори отправку из Chrome. Видео загружается напрямую с CDN, без проксирования через Render.</div></main></body></html>'''
     return html.encode('utf-8')
 
 
@@ -115,7 +101,7 @@ def cleanup(now):
 
 
 class App(BaseHTTPRequestHandler):
-    server_version = 'PS4Stream/0.4.1'
+    server_version = 'PS4Stream/0.5'
 
     def log_message(self, fmt, *args):
         # Do not log signed CDN links, cookies, API key, PINs.
@@ -154,12 +140,6 @@ class App(BaseHTTPRequestHandler):
         if path == '/healthz':
             self.reply(200, '{"ok":true}', 'application/json')
             return
-        if path == '/api/stream':
-            self.stream_video()
-            return
-        if path == '/api/check':
-            self.check_video()
-            return
         if path != '/':
             self.reply(404, '<h2>Страница не найдена</h2>')
             return
@@ -183,142 +163,6 @@ class App(BaseHTTPRequestHandler):
         with LOCK:
             cleanup(time.time())
             return _sessions.get(cookie_hash(raw))
-
-    @staticmethod
-    def verify_upstream(raw_url):
-        """Allow only explicitly configured public HTTPS hosts and port 443.
-
-        Do not auto-follow redirects (they can target the metadata service).
-        This deliberately does not forward browser cookies or spoof Referer.
-        """
-        parts = urlsplit(raw_url)
-        if (parts.scheme != 'https' or parts.hostname not in ALLOWED_VIDEO_HOSTS or
-                parts.username or parts.password or parts.port not in (None, 443)):
-            raise ValueError('Домен видеосервера не разрешён. Укажи его в VIDEO_ALLOWED_HOSTS на Render.')
-        addresses = socket.getaddrinfo(parts.hostname, 443, type=socket.SOCK_STREAM)
-        if not addresses or any(not ipaddress.ip_address(info[4][0]).is_global for info in addresses):
-            raise ValueError('Заблокирован внутренний или недоступный IP-адрес видеосервера.')
-        return raw_url
-
-    @staticmethod
-    def open_upstream(url, range_header):
-        class NoRedirect(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, request, fp, code, msg, headers, newurl):
-                return None
-        req = urllib.request.Request(url, headers={
-            'Accept-Encoding': 'identity',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            **({'Range': range_header} if range_header else {})
-        })
-        return urllib.request.build_opener(NoRedirect).open(req, timeout=12)
-
-    def check_video(self):
-        session = self.get_session()
-        if not session:
-            self.reply(401, '<h2>Сначала введи PIN на главной странице.</h2>')
-            return
-
-        # Small tests only: read at most 1 KiB from each response, never
-        # pre-download the film or expose the signed media URL in the report.
-        observations = []
-        try:
-            url = self.verify_upstream(session['media']['url'])
-            for label, request_range in [('Без Range', None), ('С Range', 'bytes=0-1023')]:
-                try:
-                    with self.open_upstream(url, request_range) as upstream:
-                        code = upstream.status
-                        mime = upstream.headers.get('Content-Type', 'не указан')[:100]
-                        chunk = upstream.read(1024)
-                        ok = (code in (200, 206) and bool(chunk) and
-                              not mime.lower().startswith(('text/', 'application/json')))
-                        observations.append((label, code, mime, ok))
-                except urllib.error.HTTPError as exc:
-                    observations.append((label, exc.code, 'ошибка CDN', False))
-                    exc.close()
-                except (OSError, urllib.error.URLError) as exc:
-                    observations.append((label, None, 'ошибка подключения', False))
-        except (ValueError, OSError, urllib.error.URLError) as exc:
-            observations.append(('Проверка адреса', None, str(exc), False))
-
-        ok = any(item[3] for item in observations)
-        status = 200 if ok else 502
-        items = ''.join('<li>' + escape(name) + ': ' +
-                        ('HTTP ' + str(code) if code else 'нет HTTP-ответа') +
-                        ' — ' + escape(kind) + '</li>' for name, code, kind, _ in observations)
-        if ok:
-            advice = 'CDN отдал данные хотя бы в одном режиме. Если Range не работает, перемотка может быть недоступна.'
-        else:
-            advice = ('Render не получил видео. Если свежая ссылка работает на домашнем IP, а оба теста здесь дают '
-                      '404, вероятно, исходный адрес недоступен с IP Render (или ему нужен другой контекст запроса).')
-        markup = ('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-                  '<style>body{font:18px/1.6 Arial;background:#101626;color:white;max-width:680px;margin:10vh auto;padding:25px}'
-                  'a{color:#b7a8ff}</style><h2>Диагностика CDN</h2><ul>' + items + '</ul><p>' + escape(advice) + '</p>'
-                  '<p>Проверено до 1024 байт на запрос, а не целый фильм. В отчёте нет секретной ссылки.</p>'
-                  '<a href="/">Вернуться к плееру</a></html>')
-        self.reply(status, markup)
-
-    def stream_video(self):
-        session = self.get_session()
-        if not session:
-            self.reply(401, 'Сессия истекла. Отправь видео заново.', 'text/plain; charset=utf-8')
-            return
-        request_range = self.headers.get('Range')
-        if request_range and not RANGE_PATTERN.fullmatch(request_range):
-            self.reply(416, 'Поддерживается только один диапазон bytes.', 'text/plain; charset=utf-8')
-            return
-        if not STREAM_SEMAPHORE.acquire(blocking=False):
-            self.reply(429, 'Слишком много одновременных подключений', 'text/plain; charset=utf-8')
-            return
-        try:
-            try:
-                url = self.verify_upstream(session['media']['url'])
-                upstream = self.open_upstream(url, request_range)
-            except urllib.error.HTTPError as exc:
-                self.reply(502, 'Видеосервер отказал Render: HTTP %d. Открой /api/check.' % exc.code, 'text/plain; charset=utf-8')
-                return
-            except (ValueError, OSError, urllib.error.URLError) as exc:
-                self.reply(502, 'Render не может получить видеопоток. Открой /api/check.', 'text/plain; charset=utf-8')
-                return
-            with upstream:
-                status = upstream.status
-                content_type = upstream.headers.get('Content-Type', 'video/mp4')
-                content_range = upstream.headers.get('Content-Range')
-                length = upstream.headers.get('Content-Length')
-                # Do not stream a redirected login page or an error response as video.
-                if (status not in (200, 206) or
-                    content_type.lower().startswith(('text/', 'application/json')) or
-                    (status == 206 and not content_range)):
-                    self.reply(502, 'CDN не вернул корректный поток MP4. Проверь /api/check.', 'text/plain; charset=utf-8')
-                    return
-                # If upstream ignores a nonzero seek, sending the full video
-                # would wrongly make the playback jump to the beginning.
-                if request_range and status == 200 and not request_range.startswith('bytes=0-'):
-                    self.reply(502, 'CDN не поддерживает перемотку Range.', 'text/plain; charset=utf-8')
-                    return
-                self.send_response(status)
-                self.send_header('Content-Type', content_type)
-                self.send_header('Accept-Ranges', upstream.headers.get('Accept-Ranges', 'bytes' if status == 206 else 'none'))
-                if content_range:
-                    self.send_header('Content-Range', content_range)
-                if length and length.isdecimal():
-                    self.send_header('Content-Length', length)
-                self.send_header('Cache-Control', 'private, no-store')
-                self.send_header('Referrer-Policy', 'no-referrer')
-                self.send_header('X-Content-Type-Options', 'nosniff')
-                self.send_header('Connection', 'close')
-                self.end_headers()
-                self.close_connection = True
-                try:
-                    while True:
-                        chunk = upstream.read(STREAM_CHUNK)
-                        if not chunk:
-                            break
-                        self.wfile.write(chunk)
-                except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
-                    pass
-        finally:
-            STREAM_SEMAPHORE.release()
 
     def do_POST(self):
         if urlsplit(self.path).path == '/api/launch':
@@ -397,7 +241,7 @@ def main():
         print('WARNING: API_KEY required before uploads work.', flush=True)
     httpd = ThreadingHTTPServer(('0.0.0.0', port), App)
     httpd.daemon_threads = True
-    print('PS4 Stream v0.4.1 listening on port', port, flush=True)
+    print('PS4 Stream v0.5 listening on port', port, flush=True)
     httpd.serve_forever()
 
 
