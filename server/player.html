@@ -11,44 +11,101 @@
 #head{position:absolute;left:4.5%;right:4.5%;top:4%;display:flex;justify-content:space-between;align-items:start;gap:15px;pointer-events:none;text-shadow:0 2px 10px #000}
 #brand{font-weight:bold;color:#c5baff;font-size:12px;letter-spacing:2.2px}#name{font-size:24px;font-weight:bold;margin-top:8px;max-width:850px}#quality{color:#a5b2ce;letter-spacing:1px;font-size:14px;text-align:right}
 #empty{position:absolute;top:41%;width:100%;text-align:center;pointer-events:none}#empty .large{font-size:31px;font-weight:bold}#empty .hint{font-size:17px;color:#aeb8ce;margin-top:13px}
-#caption{position:absolute;bottom:20%;left:10%;width:80%;text-align:center;pointer-events:none;font-size:25px;font-weight:bold;line-height:1.35;text-shadow:-2px -2px 3px #000,2px 2px 3px #000,0 0 8px #000;white-space:pre-line}
+#caption{position:absolute;bottom:20%;left:10%;width:80%;text-align:center;pointer-events:none;line-height:1.42;white-space:pre-line;z-index:2}
+#caption-text{font-size:25px;font-weight:bold;line-height:1.42;padding:2px 7px;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone;text-shadow:-1px -1px 2px #000,1px 1px 2px #000,0 2px 6px #000}
 #bar{position:absolute;left:3.5%;right:3.5%;bottom:4%;padding:22px 22px 19px;border:1px solid #39435c;background:rgba(13,18,34,.91);border-radius:19px;box-shadow:0 14px 55px #0009}
-#seek{display:block;width:100%;height:12px;cursor:pointer;accent-color:#8b75ff;margin:1px 0 14px}
+#seek-wrap{position:relative;width:100%;margin:1px 0 14px}
+#seek{display:block;width:100%;height:12px;cursor:pointer;accent-color:#8b75ff;margin:0}
+#seek-tip{position:absolute;bottom:25px;left:50%;min-width:66px;text-align:center;padding:7px 8px;border:1px solid #7462ed;border-radius:8px;background:rgba(10,14,28,.97);color:#fff;box-shadow:0 4px 18px #0008;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;visibility:hidden;opacity:0;transform:translateX(-50%);transition:opacity .12s ease}
+#seek-tip.show{visibility:visible;opacity:1}
+#seek-tip:after{content:'';position:absolute;left:50%;bottom:-5px;margin-left:-5px;width:8px;height:8px;background:#0a0e1c;border-right:1px solid #7462ed;border-bottom:1px solid #7462ed;transform:rotate(45deg)}
 #actions{display:flex;justify-content:space-between;align-items:center;gap:15px}
 #left,#right{display:flex;align-items:center;gap:10px}
 button{display:inline-block;border:1px solid #445273;background:#202942;color:#f0f2ff;border-radius:12px;min-width:57px;height:48px;padding:0 15px;font-size:20px;font-weight:bold;cursor:pointer}
 button:focus,button:hover{background:#463d81;outline:2px solid #8a7bff;outline-offset:2px}
 button.primary{background:#7462ed;border-color:#a293ff}button.active{border-color:#a293ff;background:#494273}
-#clock{font-size:15px;color:#d0d7eb;padding-left:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
-#sub-menu{position:absolute;right:30px;bottom:89px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;min-width:215px;background:#171f35;box-shadow:0 14px 32px #000b;display:none}
+/* Icons are drawn with CSS, not Unicode glyphs or SVG (PS4 browser compatibility). */
+.skip-icon{display:block;position:relative;width:35px;height:34px;margin:auto;color:inherit}
+.skip-icon:before{content:'';position:absolute;left:5px;top:5px;width:21px;height:21px;border:3px solid currentColor;border-radius:50%;border-top-color:transparent;transform:rotate(-35deg)}
+.skip-icon:after{content:'';position:absolute;left:0;top:2px;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:9px solid currentColor}
+.skip-icon.forward{transform:scaleX(-1)}
+.skip-icon.forward .skip-ten{transform:scaleX(-1)}
+.skip-ten{position:absolute;left:0;right:0;top:15px;font-size:11px;line-height:13px;text-align:center}
+.full-icon{display:block;position:relative;width:25px;height:25px;margin:auto}
+.full-icon .corner{position:absolute;width:9px;height:9px;border-style:solid;border-color:currentColor;border-width:0}
+.full-icon .tl{top:1px;left:1px;border-top-width:3px;border-left-width:3px}
+.full-icon .tr{top:1px;right:1px;border-top-width:3px;border-right-width:3px}
+.full-icon .bl{bottom:1px;left:1px;border-bottom-width:3px;border-left-width:3px}
+.full-icon .br{bottom:1px;right:1px;border-bottom-width:3px;border-right-width:3px}
+/* In fullscreen, four corners point inward to indicate exit. */
+#full.is-full .full-icon .tl{top:2px;left:2px;border-width:0 3px 3px 0}
+#full.is-full .full-icon .tr{top:2px;right:2px;border-width:0 0 3px 3px}
+#full.is-full .full-icon .bl{bottom:2px;left:2px;border-width:3px 3px 0 0}
+#full.is-full .full-icon .br{bottom:2px;right:2px;border-width:3px 0 0 3px}
+#source{min-width:85px;font-size:12px;letter-spacing:.3px;padding:0 7px}#clock{font-size:15px;color:#d0d7eb;padding-left:9px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#sub-menu{position:absolute;right:14px;bottom:87px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;width:375px;max-width:calc(100vw - 32px);max-height:70vh;overflow-y:auto;background:#171f35;box-shadow:0 14px 32px #000b;display:none;z-index:5}
 #sub-menu.show{display:block}#sub-menu .menu-title{font-size:12px;letter-spacing:1.5px;color:#aab5d4;margin:5px 5px 9px}
-#sub-menu button{display:block;text-align:left;margin:4px 0;width:100%;font-size:15px;height:40px}
+#sub-menu button{font-size:15px;height:40px}
+#sub-items button{display:block;text-align:left;margin:4px 0;width:100%;height:40px;font-size:15px}
+#sub-menu button.track-active{border-color:#b19dff;background:#443b78}
+#sub-tabs{display:flex;gap:7px;margin-bottom:10px}
+#sub-tabs button{flex:1;min-width:0;font-size:13px;padding:0 6px;height:42px}
+#sub-settings{display:none}#sub-settings.show{display:block}#sub-tracks.off{display:none}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;min-height:42px}
+.srow label{font-size:14px;color:#d9e0f1;flex:1}
+.srow select{max-width:185px;width:55%;min-height:38px;border:1px solid #465573;background:#202942;color:white;border-radius:8px;padding:5px;font-size:14px}
+.srow select:focus{outline:2px solid #8a7bff}
+.sstep{display:flex;align-items:center;gap:6px}.sstep button{min-width:38px;width:38px;height:38px;padding:0;font-size:22px}.sstep span{min-width:72px;text-align:center;font-size:14px;font-variant-numeric:tabular-nums}
+#sub-preview-box{background:#080c18;border:1px solid #39435c;text-align:center;border-radius:10px;margin:5px 0 13px;padding:16px 8px;min-height:72px;line-height:1.6;overflow:hidden}
+#sub-preview{line-height:1.5;padding:2px 6px;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+#sub-reset{display:block;width:100%;margin-top:16px;font-size:14px;border-color:#655d81;background:#29273e}
+#sub-settings .menu-title{margin:13px 2px 7px}
+#sub-presets{display:flex;gap:6px;margin:7px 0 11px}#sub-presets button{flex:1;min-width:0;height:38px;font-size:12px;padding:0 5px}
 /* Auto-hide playback chrome after inactivity. Keep captions visible. */
 #head,#bar,#newcode{opacity:1;visibility:visible;transition:opacity .25s ease,visibility 0s linear 0s}
 #app.ui-hidden #head,#app.ui-hidden #bar,#app.ui-hidden #newcode{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s linear .25s}
 #app.ui-hidden{cursor:none}
 #newcode{position:absolute;top:19px;right:25px;color:#c8bdff;font:bold 11px Arial,sans-serif;text-decoration:none;z-index:4;letter-spacing:1px}#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
-@media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
+#message a{display:inline-block;margin:12px 8px;padding:10px 15px;border:1px solid #a797ff;border-radius:9px;color:#e0d9ff;text-decoration:none;background:#202942} @media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
 </style>
 </head>
 <body>
 <div id="app">
   <video id="video" preload="auto" playsinline webkit-playsinline></video>
-  <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· DIRECT</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
-  <a href="/?new=1" id="newcode" title="Ввести другой код">НОВЫЙ КОД</a><div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Управление на PS4, без посредника после загрузки страницы</div></div>
-  <div id="caption"></div><div id="message" role="status"></div>
+  <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· CLOUD</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
+  <a href="/?new=1" id="newcode" title="Ввести другой код">НОВЫЙ КОД</a><div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Видео через Render · доступ из другой сети (эксперимент)</div></div>
+  <div id="caption"><span id="caption-text"></span></div><div id="message" role="status"></div>
   <div id="bar">
-    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Перемотка">
+    <div id="seek-wrap"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Перемотка"><div id="seek-tip" aria-hidden="true">00:00</div></div>
     <div id="actions">
       <div id="left">
-        <button id="back" title="Назад 10 сек" aria-label="Назад на 10 секунд">↶10</button>
+        <button id="back" title="Назад 10 сек" aria-label="Назад на 10 секунд"><span class="skip-icon" aria-hidden="true"><span class="skip-ten">10</span></span></button>
         <button id="play" class="primary" title="Воспроизведение" aria-label="Плей пауза">▶</button>
-        <button id="forward" title="Вперёд 10 сек" aria-label="Вперёд на 10 секунд">10↷</button>
+        <button id="forward" title="Вперёд 10 сек" aria-label="Вперёд на 10 секунд"><span class="skip-icon forward" aria-hidden="true"><span class="skip-ten">10</span></span></button>
         <span id="clock">00:00 / --:--</span>
       </div>
-      <div id="right"><button id="cc" title="Субтитры" aria-label="Выбрать субтитры">CC</button><button id="full" title="Полный экран" aria-label="Полный экран">⛶</button></div>
+      <div id="right"><button id="source" type="button" title="Выбрать способ подключения к видео">RENDER</button><button id="cc" title="Субтитры" aria-label="Выбрать субтитры">CC</button><button id="full" title="На весь экран" aria-label="На весь экран"><span class="full-icon" aria-hidden="true"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span></span></button></div>
     </div>
-    <div id="sub-menu"><div class="menu-title">СУБТИТРЫ</div><div id="sub-items"></div></div>
+    <div id="sub-menu" role="region" aria-label="Параметры субтитров">
+      <div id="sub-tabs"><button id="sub-tab-tracks" class="track-active" type="button">ЯЗЫК</button><button id="sub-tab-settings" type="button">НАСТРОЙКИ</button></div>
+      <div id="sub-tracks"><div class="menu-title">ВЫБОР ДОРОЖКИ</div><div id="sub-items"></div></div>
+      <div id="sub-settings">
+        <div class="menu-title">КАК БУДЕТ ВЫГЛЯДЕТЬ ТЕКСТ</div>
+        <div id="sub-preview-box"><span id="sub-preview">Пример субтитров</span></div>
+        <div id="sub-presets"><button id="sub-preset-classic" type="button">Обычные</button><button id="sub-preset-large" type="button">Крупные</button><button id="sub-preset-contrast" type="button">Контрастные</button></div>
+        <div class="srow"><label>Размер</label><div class="sstep"><button id="sub-size-down" type="button" aria-label="Уменьшить размер">-</button><span id="sub-size-value">25 px</span><button id="sub-size-up" type="button" aria-label="Увеличить размер">+</button></div></div>
+        <div class="srow"><label>Высота над низом</label><div class="sstep"><button id="sub-pos-down" type="button" aria-label="Опустить субтитры">-</button><span id="sub-pos-value">20%</span><button id="sub-pos-up" type="button" aria-label="Поднять субтитры">+</button></div></div>
+        <div class="srow"><label for="sub-color">Цвет</label><select id="sub-color"><option value="white">Белый</option><option value="yellow">Жёлтый</option><option value="cyan">Голубой</option><option value="green">Зелёный</option></select></div>
+        <div class="srow"><label for="sub-bg">Фон</label><select id="sub-bg"><option value="none">Без фона</option><option value="light">Лёгкий (35%)</option><option value="medium">Тёмный (65%)</option><option value="solid">Чёрный (90%)</option></select></div>
+        <div class="srow"><label for="sub-outline">Контур текста</label><select id="sub-outline"><option value="none">Без контура</option><option value="thin">Тонкий</option><option value="thick">Толстый</option></select></div>
+        <div class="srow"><label for="sub-font">Шрифт</label><select id="sub-font"><option value="arial">Обычный</option><option value="serif">С засечками</option><option value="mono">Моноширинный</option></select></div>
+        <div class="srow"><label for="sub-weight">Начертание</label><select id="sub-weight"><option value="bold">Жирный</option><option value="normal">Обычный</option></select></div>
+        <div class="srow"><label for="sub-align">Выравнивание</label><select id="sub-align"><option value="center">По центру</option><option value="left">Слева</option><option value="right">Справа</option></select></div>
+        <div class="menu-title">СИНХРОНИЗАЦИЯ</div>
+        <div class="srow"><label>Сдвиг субтитров</label><div class="sstep"><button id="sub-delay-down" type="button" aria-label="Субтитры раньше">-</button><span id="sub-delay-value">0.0 c</span><button id="sub-delay-up" type="button" aria-label="Субтитры позже">+</button></div></div>
+        <button id="sub-reset" type="button">Сбросить настройки</button>
+      </div>
+    </div>
   </div>
 </div>
 <!--PS4_DATA-->
@@ -57,10 +114,10 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   'use strict';
   function get(id){return document.getElementById(id)}
   var data; try{data=JSON.parse(get('ps4-payload').textContent)}catch(e){get('message').textContent='Ошибка данных';return}
-  var video=get('video'), playing=get('play'),seek=get('seek'),empty=get('empty'),caption=get('caption'),subMenu=get('sub-menu'),app=get('app');
+  var video=get('video'), playing=get('play'),seek=get('seek'),seekTip=get('seek-tip'),empty=get('empty'),caption=get('caption'),captionText=get('caption-text'),subMenu=get('sub-menu'),app=get('app');
   var hideTimer=null, hideDelay=3000;
   function cancelHide(){if(hideTimer!==null){clearTimeout(hideTimer);hideTimer=null}}
-  function canHide(){return !video.paused&&!video.ended&&!seek.getAttribute('data-drag')&&subMenu.className!=='show'}
+  function canHide(){return !video.paused&&!video.ended&&!seek.getAttribute('data-drag')&&!seek.getAttribute('data-hover')&&subMenu.className!=='show'}
   function hideControls(){hideTimer=null;if(canHide())app.className='ui-hidden'}
   function showControls(){
     app.className='';cancelHide();
@@ -72,7 +129,20 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   document.addEventListener('touchstart',showControls,false);
   document.addEventListener('keydown',showControls,false);
   get('name').textContent=data.title||'Видео';get('quality').textContent=data.quality||'';
-  video.src=data.url;video.load();
+  var throughRender=true;
+  var initialSource=data.url;
+  function setSource(useProxy){
+    throughRender=useProxy;
+    var address=useProxy?initialSource:(data.direct_url||initialSource);
+    get('source').textContent=useProxy?'RENDER':'ПРЯМО';
+    get('source').title=useProxy?'Через Render — нажми для прямого подключения':'Прямое CDN — нажми для режима через Render';
+    get('brand').textContent='PS4 STREAM · '+(useProxy?'CLOUD':'DIRECT');
+    get('message').textContent='';
+    video.pause();video.src=address;video.load();
+    showControls();
+  }
+  get('source').onclick=function(){setSource(!throughRender)};
+  setSource(true);
   function fmt(sec){if(!isFinite(sec))return '--:--';sec=Math.max(0,Math.floor(sec));var h=Math.floor(sec/3600),m=Math.floor(sec/60)%60,s=sec%60;return (h?h+':':'')+(h?('0'+m).slice(-2):m)+':'+('0'+s).slice(-2)}
   function progress(){
     var duration=video.duration;get('clock').textContent=fmt(video.currentTime)+' / '+fmt(duration);
@@ -84,12 +154,55 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   playing.onclick=toggle;video.onclick=toggle;
   get('back').onclick=function(){try{video.currentTime=Math.max(0,video.currentTime-10)}catch(e){}};
   get('forward').onclick=function(){try{video.currentTime=Math.min(isFinite(video.duration)?video.duration:1e14,video.currentTime+10)}catch(e){}};
-  seek.oninput=function(){seek.setAttribute('data-drag','yes');showControls()};
-  seek.onchange=function(){var duration=video.duration;if(isFinite(duration)&&duration>0)video.currentTime=Number(seek.value)*duration/1000;seek.removeAttribute('data-drag');showControls()};
+  // Show the exact timeline position without seeking until the user clicks.
+  function seekPreview(ratio){
+    var duration=video.duration;
+    if(!isFinite(duration)||duration<=0){seekTip.className='';return}
+    ratio=Math.max(0,Math.min(1,ratio));
+    seekTip.textContent=fmt(Math.round(duration*ratio));
+    var width=seek.getBoundingClientRect().width;
+    var half=Math.max(34,seekTip.offsetWidth/2+4);
+    seekTip.style.left=Math.max(half,Math.min(width-half,width*ratio))+'px';
+    seekTip.className='show';
+  }
+  function seekPreviewAt(e){
+    var rect=seek.getBoundingClientRect();
+    if(rect.width>0)seekPreview((e.clientX-rect.left)/rect.width);
+  }
+  seek.onmouseenter=function(e){seek.setAttribute('data-hover','yes');seekPreviewAt(e);showControls()};
+  seek.onmousemove=function(e){seekPreviewAt(e)};
+  seek.onmouseleave=function(){seek.removeAttribute('data-hover');seekTip.className='';showControls()};
+  seek.onfocus=function(){seekPreview(Number(seek.value)/1000);showControls()};
+  seek.onblur=function(){seekTip.className='';seek.removeAttribute('data-hover');showControls()};
+  seek.ontouchstart=function(e){if(e.touches&&e.touches[0])seekPreviewAt(e.touches[0]);showControls()};
+  seek.ontouchmove=function(e){if(e.touches&&e.touches[0])seekPreviewAt(e.touches[0])};
+  seek.ontouchend=function(){seekTip.className=''};
+  seek.oninput=function(){seek.setAttribute('data-drag','yes');seekPreview(Number(seek.value)/1000);showControls()};
+  seek.onchange=function(){var duration=video.duration;if(isFinite(duration)&&duration>0)video.currentTime=Number(seek.value)*duration/1000;seek.removeAttribute('data-drag');if(!seek.getAttribute('data-hover'))seekTip.className='';showControls()};
+  function isFullscreen(){
+    return !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement||document.webkitIsFullScreen||document.mozFullScreen||video.webkitDisplayingFullscreen);
+  }
+  function updateFullscreenButton(){
+    var button=get('full'),isFull=isFullscreen();
+    button.className=isFull?'is-full':'';
+    button.title=isFull?'Выйти из полноэкранного режима':'На весь экран';
+    button.setAttribute('aria-label',button.title);
+  }
   get('full').onclick=function(){
-    var app=get('app');var req=app.requestFullscreen||app.webkitRequestFullscreen||app.mozRequestFullScreen;
-    if(req){try{req.call(app)}catch(e){}}else if(video.webkitEnterFullscreen){try{video.webkitEnterFullscreen()}catch(e){}}
+    if(isFullscreen()){
+      var exit=document.exitFullscreen||document.webkitExitFullscreen||document.webkitCancelFullScreen||document.mozCancelFullScreen||document.msExitFullscreen;
+      if(exit){try{exit.call(document)}catch(e){}}
+      else if(video.webkitExitFullscreen){try{video.webkitExitFullscreen()}catch(e){}}
+    }else{
+      var req=app.requestFullscreen||app.webkitRequestFullscreen||app.mozRequestFullScreen||app.msRequestFullscreen;
+      if(req){try{req.call(app)}catch(e){}}
+      else if(video.webkitEnterFullscreen){try{video.webkitEnterFullscreen()}catch(e){}}
+    }
+    updateFullscreenButton();showControls();
   };
+  ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(function(event){document.addEventListener(event,function(){updateFullscreenButton();showControls()},false)});
+  video.addEventListener('webkitbeginfullscreen',updateFullscreenButton,false);
+  video.addEventListener('webkitendfullscreen',updateFullscreenButton,false);
   var tracks=[{lang:'Выключены',cues:[]}];
   function time(s){var a=s.trim().replace(',', '.').split(':'), n=0;for(var i=0;i<a.length;i++)n=n*60+parseFloat(a[i]);return n}
   function parseSrtVtt(text){
@@ -109,18 +222,113 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
     var sub=data.subtitles[i];tracks.push({lang:sub.lang||('Track '+(i+1)),cues:parseSrtVtt(sub.text)});
   }selected=tracks.length>1?1:0;}
   function showCaption(){
-    if(!selected){caption.textContent='';return}var list=tracks[selected].cues,t=video.currentTime,low=0,high=list.length-1,found='';
+    if(!selected){captionText.textContent='';return}var list=tracks[selected].cues,t=video.currentTime-subPrefs.delay,low=0,high=list.length-1,found='';
     while(low<=high){var mid=(low+high)>>1;if(list[mid].start>t)high=mid-1;else low=mid+1}
     for(var i=Math.max(0,high-2);i<=high&&i<list.length;i++)if(list[i].start<=t&&list[i].end>=t){found=list[i].text;break}
-    caption.textContent=found;
+    captionText.textContent=found;
   }
-  function chooseTrack(index){selected=index;subMenu.className='';get('cc').className=index?'active':'';showCaption();showControls()}
-  var subItems=get('sub-items');for(var j=0;j<tracks.length;j++)(function(idx){var b=document.createElement('button');b.textContent=tracks[idx].lang;b.onclick=function(){chooseTrack(idx)};subItems.appendChild(b)})(j);
+  // Subtitle preferences are local to this PS4 browser and survive page reloads.
+  var prefKey='ps4-stream-subtitles-v1';
+  var defaults={size:25,position:20,color:'white',bg:'none',outline:'thin',font:'arial',weight:'bold',align:'center',delay:0};
+  var colors={white:'#ffffff',yellow:'#ffe87a',cyan:'#8eefff',green:'#a8f5b0'};
+  var backgrounds={none:'transparent',light:'rgba(0,0,0,.35)',medium:'rgba(0,0,0,.65)',solid:'rgba(0,0,0,.9)'};
+  var fonts={arial:'Arial,Helvetica,sans-serif',serif:'Georgia,serif',mono:'Courier New,monospace'};
+  function hasOwn(obj,key){return Object.prototype.hasOwnProperty.call(obj,key)}
+  function copyDefaults(){var result={};for(var k in defaults)if(hasOwn(defaults,k))result[k]=defaults[k];return result}
+  var subPrefs=copyDefaults();
+  function allowed(val,dict,fallback){return hasOwn(dict,val)?val:fallback}
+  try{
+    var remembered=JSON.parse(localStorage.getItem(prefKey)||'{}');
+    if(remembered&&typeof remembered==='object'){
+      var keys=['size','position','delay'];
+      for(var i=0;i<keys.length;i++){
+        var key=keys[i];if(typeof remembered[key]==='number'&&isFinite(remembered[key]))subPrefs[key]=remembered[key];
+      }
+      for(var key in defaults){
+        if(hasOwn(defaults,key)&&typeof defaults[key]==='string'&&typeof remembered[key]==='string')subPrefs[key]=remembered[key];
+      }
+    }
+  }catch(e){}
+  subPrefs.size=Math.max(16,Math.min(56,Math.round(subPrefs.size)));
+  subPrefs.position=Math.max(5,Math.min(42,Math.round(subPrefs.position)));
+  subPrefs.delay=Math.max(-10,Math.min(10,Math.round(subPrefs.delay*4)/4));
+  subPrefs.color=allowed(subPrefs.color,colors,'white');
+  subPrefs.bg=allowed(subPrefs.bg,backgrounds,'none');
+  subPrefs.font=allowed(subPrefs.font,fonts,'arial');
+  subPrefs.outline=allowed(subPrefs.outline,{none:1,thin:1,thick:1},'thin');
+  subPrefs.weight=allowed(subPrefs.weight,{bold:1,normal:1},'bold');
+  subPrefs.align=allowed(subPrefs.align,{center:1,left:1,right:1},'center');
+  function savePrefs(){try{localStorage.setItem(prefKey,JSON.stringify(subPrefs))}catch(e){}}
+  function applySubStyle(target){
+    target.style.fontSize=subPrefs.size+'px';
+    target.style.fontFamily=fonts[subPrefs.font];
+    target.style.fontWeight=subPrefs.weight;
+    target.style.color=colors[subPrefs.color];
+    target.style.backgroundColor=backgrounds[subPrefs.bg];
+    target.style.webkitTextStroke=subPrefs.outline==='thick'?'1.5px #000':(subPrefs.outline==='thin'?'0.65px #000':'0px transparent');
+    target.style.textShadow=subPrefs.outline==='none'?'none':(subPrefs.outline==='thick'?'2px 2px 2px #000,-2px 2px 2px #000,2px -2px 2px #000,-2px -2px 2px #000,0 2px 5px #000':'1px 1px 2px #000,-1px -1px 2px #000,0 2px 4px #000');
+  }
+  function updateSubPrefs(){
+    caption.style.bottom=subPrefs.position+'%';caption.style.textAlign=subPrefs.align;
+    applySubStyle(captionText);
+    applySubStyle(get('sub-preview'));
+    get('sub-size-value').textContent=subPrefs.size+' px';
+    get('sub-pos-value').textContent=subPrefs.position+'%';
+    get('sub-delay-value').textContent=(subPrefs.delay>0?'+':'')+subPrefs.delay.toFixed(2)+' c';
+    for(var k in {color:1,bg:1,outline:1,font:1,weight:1,align:1})if(hasOwn(subPrefs,k))get('sub-'+k).value=subPrefs[k];
+    showCaption();
+  }
+  function stepPref(name,change,min,max){subPrefs[name]=Math.max(min,Math.min(max,Math.round((subPrefs[name]+change)*4)/4));savePrefs();updateSubPrefs();showControls()}
+  get('sub-size-down').onclick=function(){stepPref('size',-2,16,56)};
+  get('sub-size-up').onclick=function(){stepPref('size',2,16,56)};
+  get('sub-pos-down').onclick=function(){stepPref('position',-3,5,42)};
+  get('sub-pos-up').onclick=function(){stepPref('position',3,5,42)};
+  get('sub-delay-down').onclick=function(){stepPref('delay',-.25,-10,10)};
+  get('sub-delay-up').onclick=function(){stepPref('delay',.25,-10,10)};
+  ['color','bg','outline','font','weight','align'].forEach(function(key){
+    get('sub-'+key).onchange=function(){subPrefs[key]=this.value;savePrefs();updateSubPrefs();showControls()};
+  });
+  function preset(overrides){
+    subPrefs=copyDefaults();for(var key in overrides)if(hasOwn(overrides,key))subPrefs[key]=overrides[key];
+    savePrefs();updateSubPrefs();showControls();
+  }
+  get('sub-preset-classic').onclick=function(){preset({})};
+  get('sub-preset-large').onclick=function(){preset({size:36,position:23,bg:'medium'})};
+  get('sub-preset-contrast').onclick=function(){preset({size:30,color:'yellow',bg:'solid',outline:'thick'})};
+  get('sub-reset').onclick=function(){preset({})};
+  function showSubTab(tab){
+    var settings=tab==='settings';
+    get('sub-settings').className=settings?'show':'';
+    get('sub-tracks').className=settings?'off':'';
+    get('sub-tab-settings').className=settings?'track-active':'';
+    get('sub-tab-tracks').className=settings?'':'track-active';
+    showControls();
+  }
+  get('sub-tab-tracks').onclick=function(){showSubTab('tracks')};
+  get('sub-tab-settings').onclick=function(){showSubTab('settings')};
+  var trackButtons=[];
+  function updateTracks(){
+    for(var i=0;i<trackButtons.length;i++)trackButtons[i].className=i===selected?'track-active':'';
+  }
+  function chooseTrack(index){selected=index;subMenu.className='';get('cc').className=index?'active':'';updateTracks();showCaption();showControls()}
+  var subItems=get('sub-items');for(var j=0;j<tracks.length;j++)(function(idx){
+    var b=document.createElement('button');b.type='button';b.textContent=tracks[idx].lang;
+    b.onclick=function(){chooseTrack(idx)};subItems.appendChild(b);trackButtons.push(b);
+  })(j);
   get('cc').className=selected?'active':'';
   get('cc').onclick=function(){subMenu.className=subMenu.className==='show'?'':'show';showControls()};
+  subMenu.addEventListener('mousedown',showControls,false);
+  updateTracks();updateSubPrefs();
   video.addEventListener('timeupdate',progress);video.addEventListener('loadedmetadata',progress);video.addEventListener('durationchange',progress);
   video.addEventListener('play',state);video.addEventListener('pause',state);video.addEventListener('ended',state);
-  video.addEventListener('error',function(){var code=video.error&&video.error.code;get('message').textContent='Видео не открылось (код '+code+'). Возможно, PS4 не поддерживает кодек, CDN требует Referer/cookie или ссылка истекла.'});
+  video.addEventListener('error',function(){
+    var code=video.error&&video.error.code, msg=get('message');
+    msg.textContent='Ошибка воспроизведения (код '+code+'). '+(throughRender?'Проверь, доступен ли источник серверу Render.':'Прямая ссылка не работает из этой сети. Попробуй RENDER.');
+    if(throughRender){
+      var link=document.createElement('a');link.href='/api/check';link.textContent='Проверить CDN';msg.appendChild(document.createElement('br'));msg.appendChild(link);
+    }
+    showControls();
+  });
   document.addEventListener('keydown',function(e){var key=e.key||e.keyCode;
     if(key===' '||key==='Enter'||key===32||key===13){if(document.activeElement.tagName!=='BUTTON'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();toggle()}}
     else if(key==='ArrowLeft'||key===37)get('back').click();else if(key==='ArrowRight'||key===39)get('forward').click();
