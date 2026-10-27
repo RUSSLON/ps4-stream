@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PS4 Stream v0.4: one-time PIN and opt-in secure HTTP Range relay."""
+"""PS4 Stream v0.4.1: browser-style CDN request + low-bandwidth Range diagnostics."""
 import hmac
 import ipaddress
 import socket
@@ -115,7 +115,7 @@ def cleanup(now):
 
 
 class App(BaseHTTPRequestHandler):
-    server_version = 'PS4Stream/0.4'
+    server_version = 'PS4Stream/0.4.1'
 
     def log_message(self, fmt, *args):
         # Do not log signed CDN links, cookies, API key, PINs.
@@ -207,7 +207,8 @@ class App(BaseHTTPRequestHandler):
                 return None
         req = urllib.request.Request(url, headers={
             'Accept-Encoding': 'identity',
-            'User-Agent': 'PS4Stream/0.4',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+            'Accept': '*/*',
             **({'Range': range_header} if range_header else {})
         })
         return urllib.request.build_opener(NoRedirect).open(req, timeout=12)
@@ -217,26 +218,44 @@ class App(BaseHTTPRequestHandler):
         if not session:
             self.reply(401, '<h2>Сначала введи PIN на главной странице.</h2>')
             return
-        status, detail = 502, 'Нет ответа'
+
+        # Small tests only: read at most 1 KiB from each response, never
+        # pre-download the film or expose the signed media URL in the report.
+        observations = []
         try:
             url = self.verify_upstream(session['media']['url'])
-            with self.open_upstream(url, 'bytes=0-1023') as upstream:
-                code = upstream.status
-                content_type = upstream.headers.get('Content-Type', '')
-                chunk = upstream.read(1024)
-                if code in (200, 206) and not content_type.lower().startswith(('text/html', 'application/json')):
-                    status = 200
-                    detail = 'Render получает видео. HTTP %d, тип %s, получено %d байт. Можно попробовать режим RENDER.' % (code, content_type or 'не указан', len(chunk))
-                else:
-                    detail = 'Видеосервер ответил HTTP %d, тип %s. Возможно, вместо MP4 приходит ошибка или HTML.' % (code, content_type or 'не указан')
-        except urllib.error.HTTPError as exc:
-            detail = 'Видеосервер отказал Render: HTTP %d. Вероятна привязка ссылки к IP, сроку или ограничениям доступа.' % exc.code
+            for label, request_range in [('Без Range', None), ('С Range', 'bytes=0-1023')]:
+                try:
+                    with self.open_upstream(url, request_range) as upstream:
+                        code = upstream.status
+                        mime = upstream.headers.get('Content-Type', 'не указан')[:100]
+                        chunk = upstream.read(1024)
+                        ok = (code in (200, 206) and bool(chunk) and
+                              not mime.lower().startswith(('text/', 'application/json')))
+                        observations.append((label, code, mime, ok))
+                except urllib.error.HTTPError as exc:
+                    observations.append((label, exc.code, 'ошибка CDN', False))
+                    exc.close()
+                except (OSError, urllib.error.URLError) as exc:
+                    observations.append((label, None, 'ошибка подключения', False))
         except (ValueError, OSError, urllib.error.URLError) as exc:
-            detail = str(exc)
+            observations.append(('Проверка адреса', None, str(exc), False))
+
+        ok = any(item[3] for item in observations)
+        status = 200 if ok else 502
+        items = ''.join('<li>' + escape(name) + ': ' +
+                        ('HTTP ' + str(code) if code else 'нет HTTP-ответа') +
+                        ' — ' + escape(kind) + '</li>' for name, code, kind, _ in observations)
+        if ok:
+            advice = 'CDN отдал данные хотя бы в одном режиме. Если Range не работает, перемотка может быть недоступна.'
+        else:
+            advice = ('Render не получил видео. Если свежая ссылка работает на домашнем IP, а оба теста здесь дают '
+                      '404, вероятно, исходный адрес недоступен с IP Render (или ему нужен другой контекст запроса).')
         markup = ('<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
                   '<style>body{font:18px/1.6 Arial;background:#101626;color:white;max-width:680px;margin:10vh auto;padding:25px}'
-                  'a{color:#b7a8ff}</style><h2>Проверка доступа с Render</h2><p>' + escape(detail) + '</p>'
-                  '<p>Это проверка первых 1024 байт, не гарантия воспроизведения всего фильма.</p><a href="/">Вернуться к плееру</a></html>')
+                  'a{color:#b7a8ff}</style><h2>Диагностика CDN</h2><ul>' + items + '</ul><p>' + escape(advice) + '</p>'
+                  '<p>Проверено до 1024 байт на запрос, а не целый фильм. В отчёте нет секретной ссылки.</p>'
+                  '<a href="/">Вернуться к плееру</a></html>')
         self.reply(status, markup)
 
     def stream_video(self):
@@ -378,7 +397,7 @@ def main():
         print('WARNING: API_KEY required before uploads work.', flush=True)
     httpd = ThreadingHTTPServer(('0.0.0.0', port), App)
     httpd.daemon_threads = True
-    print('PS4 Stream v0.4 listening on port', port, flush=True)
+    print('PS4 Stream v0.4.1 listening on port', port, flush=True)
     httpd.serve_forever()
 
 
