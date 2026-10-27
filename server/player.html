@@ -23,7 +23,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
 #sub-menu{position:absolute;right:30px;bottom:89px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;min-width:215px;background:#171f35;box-shadow:0 14px 32px #000b;display:none}
 #sub-menu.show{display:block}#sub-menu .menu-title{font-size:12px;letter-spacing:1.5px;color:#aab5d4;margin:5px 5px 9px}
 #sub-menu button{display:block;text-align:left;margin:4px 0;width:100%;font-size:15px;height:40px}
-#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
+#newcode{position:absolute;top:19px;right:25px;color:#c8bdff;font:bold 11px Arial,sans-serif;text-decoration:none;z-index:4;letter-spacing:1px}#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
 @media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
 </style>
 </head>
@@ -31,7 +31,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
 <div id="app">
   <video id="video" preload="auto" playsinline webkit-playsinline></video>
   <div id="head"><div><div id="brand">◆ PS4 STREAM <span style="color:#92d8bd">· DIRECT</span></div><div id="name">Загрузка…</div></div><div id="quality"></div></div>
-  <div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Управление на PS4, без посредника после загрузки страницы</div></div>
+  <a href="/?new=1" id="newcode" title="Ввести другой код">НОВЫЙ КОД</a><div id="empty"><div class="large">Нажми ▶ для просмотра</div><div class="hint">Управление на PS4, без посредника после загрузки страницы</div></div>
   <div id="caption"></div><div id="message" role="status"></div>
   <div id="bar">
     <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Перемотка">

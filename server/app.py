@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
-"""Minimal Render web app for PS4 Stream. No CDN video proxy, no third-party deps."""
+"""PS4 Stream v0.3. Small single-process, one-time 4 digit pairing app."""
 import hmac
-import hashlib
 import json
 import os
 import secrets
+import re
 import threading
 import time
+from collections import defaultdict, deque
+from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 TTL = 600
 LIMIT = 3 * 1024 * 1024
+PIN_PATTERN = re.compile(r'^[0-9]{4}$')
 TEMPLATE = Path(__file__).with_name('player.html').read_text(encoding='utf-8')
 API_KEY = os.environ.get('API_KEY', '').strip()
-TV_KEY = os.environ.get('TV_KEY', '').strip()
-TV_SLUG = hashlib.sha256(('ps4-stream-tv-v1:' + TV_KEY).encode('utf-8')).hexdigest()[:24] if TV_KEY else ''
-_lock = threading.Lock()
-_latest = None
+LOCK = threading.Lock()
+_pending = None    # One PIN waiting to be redeemed, newest upload wins.
+_sessions = {}    # Session-cookie hashes -> media, expires after 10 minutes.
+_failures = defaultdict(deque)
+_global_failures = deque()
 
 
 def validate_url(value):
@@ -33,22 +37,25 @@ def validate_url(value):
 def sanitize(media):
     if not isinstance(media, dict):
         raise ValueError('Отсутствуют данные видео')
+    subtitles = media.get('subtitles') or []
+    if not isinstance(subtitles, list):
+        raise ValueError('Некорректный формат субтитров')
     result = {
         'title': str(media.get('title') or 'Видео')[:180],
         'quality': str(media.get('quality') or '')[:40],
         'url': validate_url(media.get('url')),
         'subtitles': []
     }
-    total_sub_chars = 0
-    for item in media.get('subtitles', [])[:8]:
-        if not isinstance(item, dict):
+    total = 0
+    for sub in subtitles[:8]:
+        if not isinstance(sub, dict):
             continue
-        lang = str(item.get('lang') or 'Субтитры')[:80]
-        content = item.get('text')
-        if not isinstance(content, str) or '-->' not in content or len(content) > 750_000:
+        lang = str(sub.get('lang') or 'Субтитры')[:80]
+        content = sub.get('text')
+        if not isinstance(content, str) or '-->' not in content or len(content) > 750000:
             continue
-        total_sub_chars += len(content)
-        if total_sub_chars > 1_500_000:
+        total += len(content)
+        if total > 1500000:
             break
         result['subtitles'].append({'lang': lang, 'text': content})
     return result
@@ -56,23 +63,47 @@ def sanitize(media):
 
 def render_player(media):
     payload = json.dumps(media, ensure_ascii=False, separators=(',', ':'))
-    # JSON inside <script type=application/json> still needs HTML escaping.
-    for old, new in [('&', '\\u0026'), ('<', '\\u003c'), ('>', '\\u003e'), ('\u2028', '\\u2028'), ('\u2029', '\\u2029')]:
-        payload = payload.replace(old, new)
+    # Escaping is mandatory, including when this JSON is in a non-executable script.
+    for original, replacement in [('&', '\\u0026'), ('<', '\\u003c'), ('>', '\\u003e'), ('\u2028', '\\u2028'), ('\u2029', '\\u2029')]:
+        payload = payload.replace(original, replacement)
     return TEMPLATE.replace('<!--PS4_DATA-->', '<script id="ps4-payload" type="application/json">' + payload + '</script>').encode('utf-8')
 
 
-HOME = '''<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PS4 Stream</title>
-<style>body{background:#0b1020;color:#f2f4ff;font:17px system-ui,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}main{max-width:600px;padding:32px;border:1px solid #293554;border-radius:20px;background:#141c31}small{color:#a5b2cf}.logo{color:#a18aff;font-weight:bold;letter-spacing:3px}h1{font-size:35px}</style><main><div class="logo">◆ PS4 STREAM</div><h1>Плеер для PlayStation</h1><p>Выбери видео в Chrome и отправь сюда через расширение PS4 Stream. На консоли открой свою персональную ссылку /tv/…</p><small>Без проксирования видеопотока. Работает только с прямыми ссылками, доступными браузеру PS4.</small></main></html>'''
-WAIT = '''<!doctype html><html lang="ru"><meta charset="utf-8"><meta http-equiv="refresh" content="20"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PS4 Stream · ожидание</title>
-<style>body{background:#0c1120;color:#f4f5ff;font:22px Arial,sans-serif;text-align:center;padding:15vh 20px}.sub{color:#a9b5d3;font-size:17px}button{border:0;border-radius:12px;background:#806bff;color:white;padding:18px;font-size:20px}</style><h2>◆ PS4 STREAM</h2><p>Ожидаем видео из Chrome…</p><p class="sub">Если фильм уже отправлен, страница обновится автоматически.</p><button onclick="location.reload()">Обновить</button></html>'''
+def pin_page(error=''):
+    from html import escape
+    alert = ('<div class="alert" role="alert">' + escape(error) + '</div>') if error else ''
+    html = '''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PS4 Stream · Вход</title>
+<style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#090e1c;color:#f6f7ff;font-family:Arial,Helvetica,sans-serif}body{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 5%,#283155 0%,#090e1c 65%)}main{width:440px;max-width:calc(100% - 28px);padding:35px 32px;background:#141a2d;border:1px solid #434b70;border-radius:20px;box-shadow:0 30px 90px #0009}.logo{color:#af9aff;letter-spacing:3px;font:bold 14px Arial,sans-serif}.pill{display:inline-block;margin-top:20px;color:#9cdeb7;border:1px solid #316a53;border-radius:30px;padding:7px 11px;font-size:12px}h1{font-size:30px;line-height:1.15;margin:16px 0 9px}.sub{color:#aebbd3;line-height:1.5;margin-bottom:25px}label{display:block;font-size:13px;font-weight:bold;margin:0 0 9px}input{display:block;width:100%;font:bold 42px/1 Arial,sans-serif;text-align:center;letter-spacing:15px;color:white;background:#0b1122;border:2px solid #505d8d;border-radius:13px;padding:15px 12px;outline:none}input:focus{border-color:#ad98ff}button{width:100%;padding:17px;border:0;border-radius:12px;background:linear-gradient(110deg,#7558fa,#3c88fd);font:bold 17px Arial,sans-serif;color:#fff;cursor:pointer;margin-top:16px}button:focus{outline:3px solid #fff}.alert{color:#ffd5d7;background:#502b36;padding:12px;border-radius:9px;margin-bottom:16px;line-height:1.4}.foot{font-size:12px;color:#8d9ab5;margin-top:23px;line-height:1.5}small{display:block;color:#91a2c5;font-size:13px;margin-top:10px}</style></head><body><main><div class="logo">◈ PS4 STREAM</div><span class="pill">PLAYSTATION PLAYER</span><h1>Ввод кода</h1><p class="sub">Отправь фильм из расширения Chrome, затем введи четырёхзначный код с экрана ноутбука.</p>'''+ alert +'''<form method="post" action="/"><label for="pin">КОД ПОДКЛЮЧЕНИЯ</label><input id="pin" name="pin" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" minlength="4" placeholder="0000" autocomplete="off" required autofocus><button type="submit">Начать просмотр →</button></form><small>Код действует 10 минут и только один раз.</small><div class="foot">Если код истёк, повтори отправку из Chrome. Видео воспроизводится напрямую с CDN, без прокси Render.</div></main></body></html>'''
+    return html.encode('utf-8')
+
+
+def cookie_hash(raw):
+    import hashlib
+    return hashlib.sha256(raw.encode('ascii')).hexdigest()
+
+
+def cleanup(now):
+    global _pending
+    if _pending and now - _pending['when'] >= TTL:
+        _pending = None
+    for sid, s in list(_sessions.items()):
+        if now - s['when'] >= TTL:
+            del _sessions[sid]
+    for key in list(_failures):
+        q = _failures[key]
+        while q and now - q[0] >= TTL:
+            q.popleft()
+        if not q:
+            del _failures[key]
+    while _global_failures and now - _global_failures[0] >= TTL:
+        _global_failures.popleft()
 
 
 class App(BaseHTTPRequestHandler):
-    server_version = 'PS4Stream/0.2'
+    server_version = 'PS4Stream/0.3'
 
     def log_message(self, fmt, *args):
-        # Do not log URLs containing signed media/CDN tokens or secret TV room key.
+        # Do not log signed CDN links, cookies, API key, PINs.
         pass
 
     def reply(self, status, content, mime='text/html; charset=utf-8', extras=None):
@@ -88,15 +119,17 @@ class App(BaseHTTPRequestHandler):
             for k, v in extras.items():
                 self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
     def cors(self):
-        # Bearer authentication is always required for write operations.
         return {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Max-Age': '600'}
 
     def do_OPTIONS(self):
-        if self.path == '/api/launch':
+        if urlsplit(self.path).path == '/api/launch':
             self.reply(204, '', 'text/plain', self.cors())
         else:
             self.reply(404, '')
@@ -105,56 +138,104 @@ class App(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == '/healthz':
             self.reply(200, '{"ok":true}', 'application/json')
-        elif path == '/':
-            self.reply(200, HOME)
-        elif TV_KEY and path == '/tv/' + TV_SLUG:
-            with _lock:
-                snapshot = _latest
-            if snapshot and time.time() - snapshot['when'] < TTL:
-                self.reply(200, render_player(snapshot['media']))
-            else:
-                self.reply(200, WAIT)
-        else:
+            return
+        if path != '/':
             self.reply(404, '<h2>Страница не найдена</h2>')
+            return
+        new = 'new=1' in urlsplit(self.path).query.split('&')
+        raw = None
+        try:
+            jar = cookies.SimpleCookie();jar.load(self.headers.get('Cookie', ''))
+            raw = jar['ps4_view'].value if 'ps4_view' in jar else None
+        except cookies.CookieError:
+            pass
+        with LOCK:
+            cleanup(time.time())
+            session = _sessions.get(cookie_hash(raw)) if raw and not new and len(raw) < 300 else None
+        headers = {'Set-Cookie': 'ps4_view=; HttpOnly; SameSite=Lax; Secure; Path=/; Max-Age=0'} if new else None
+        if session:
+            self.reply(200, render_player(session['media']))
+        else:
+            self.reply(200, pin_page(), extras=headers)
 
     def do_POST(self):
-        global _latest
-        if self.path != '/api/launch':
-            self.reply(404, '{}', 'application/json', self.cors())
+        if urlsplit(self.path).path == '/api/launch':
+            self.launch()
+        elif urlsplit(self.path).path == '/':
+            self.redeem()
+        else:
+            self.reply(404, '')
+
+    def launch(self):
+        global _pending
+        if not API_KEY:
+            self.reply(503, '{"ok":false,"error":"На Render нужно настроить API_KEY"}', 'application/json', self.cors())
             return
-        if not API_KEY or not TV_KEY:
-            self.reply(503, '{"ok":false,"error":"На Render нужно задать API_KEY и TV_KEY"}', 'application/json', self.cors())
-            return
-        token = self.headers.get('Authorization', '')
-        if not hmac.compare_digest(token, 'Bearer ' + API_KEY):
+        if not hmac.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + API_KEY):
             self.reply(401, '{"ok":false,"error":"Неверный API_KEY"}', 'application/json', self.cors())
             return
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if not 0 < size <= LIMIT:
-                raise ValueError('Слишком большой запрос или не указан Content-Length')
-            body = self.rfile.read(size)
-            media = sanitize(json.loads(body))
-            with _lock:
-                _latest = {'when': time.time(), 'media': media}
-            # Host is only a hint, never accept arbitrary Host as a redirect target.
-            origin = os.environ.get('RENDER_EXTERNAL_URL', '').rstrip('/')
-            if not origin:
-                origin = 'http://localhost:' + str(self.server.server_port)
-            result = json.dumps({'ok': True, 'url': origin + '/tv/' + TV_SLUG, 'expires_in_seconds': TTL}, ensure_ascii=False)
-            self.reply(200, result, 'application/json', self.cors())
+                raise ValueError('Слишком большой запрос')
+            data = json.loads(self.rfile.read(size))
+            if not isinstance(data, dict) or not isinstance(data.get('pin'), str) or not PIN_PATTERN.fullmatch(data['pin']):
+                raise ValueError('Нужен четырёхзначный PIN')
+            media = sanitize(data)
+            now = time.time()
+            with LOCK:
+                cleanup(now)
+                if _pending and hmac.compare_digest(_pending['pin'], data['pin']):
+                    self.reply(409, '{"ok":false,"error":"PIN уже занят, повтори отправку"}', 'application/json', self.cors())
+                    return
+                _pending = {'pin': data['pin'], 'when': now, 'media': media}
+            self.reply(200, json.dumps({'ok': True, 'expires_in_seconds': TTL}, ensure_ascii=False), 'application/json', self.cors())
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self.reply(400, json.dumps({'ok': False, 'error': str(exc)}, ensure_ascii=False), 'application/json', self.cors())
+
+    def redeem(self):
+        global _pending
+        if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/x-www-form-urlencoded':
+            self.reply(415, pin_page('Неподдерживаемый формат запроса'))
+            return
+        try:
+            size = int(self.headers.get('Content-Length', '0'))
+            if not 0 < size < 256:
+                raise ValueError('Неверный размер запроса')
+            form = parse_qs(self.rfile.read(size).decode('utf-8'), keep_blank_values=True)
+            pin = form.get('pin', [''])[0]
+        except (ValueError, UnicodeError):
+            self.reply(400, pin_page('Некорректный код'))
+            return
+        # Pairing is one-shot. A short-lived HttpOnly cookie permits refresh on the same console.
+        client = self.client_address[0]  # Never trust user-controlled forwarded headers for rate limiting.
+        now = time.time()
+        with LOCK:
+            cleanup(now)
+            if len(_failures[client]) >= 7 or len(_global_failures) >= 100:
+                self.reply(429, pin_page('Слишком много попыток. Повтори позже.'), extras={'Retry-After': '600'})
+                return
+            if not PIN_PATTERN.fullmatch(pin or '') or not _pending or not hmac.compare_digest(pin, _pending['pin']):
+                _failures[client].append(now)
+                _global_failures.append(now)
+                self.reply(400, pin_page('Неверный или истёкший код.'))
+                return
+            media = _pending['media']
+            _pending = None
+            session_token = secrets.token_urlsafe(32)
+            _sessions[cookie_hash(session_token)] = {'media': media, 'when': now}
+        self.reply(200, render_player(media), extras={
+            'Set-Cookie': 'ps4_view=' + session_token + '; HttpOnly; SameSite=Lax; Secure; Path=/; Max-Age=600'
+        })
 
 
 def main():
     port = int(os.environ.get('PORT', '10000'))
-    if not (API_KEY and TV_KEY):
-        print('WARNING: API_KEY and TV_KEY must be set before accepting uploads', flush=True)
-    # Single process/worker required; data is stored in memory for 10 minutes only.
+    if not API_KEY:
+        print('WARNING: API_KEY required before uploads work.', flush=True)
     httpd = ThreadingHTTPServer(('0.0.0.0', port), App)
     httpd.daemon_threads = True
-    print('PS4 Stream listening on port', port, flush=True)
+    print('PS4 Stream v0.3 listening on port', port, flush=True)
     httpd.serve_forever()
 
 
