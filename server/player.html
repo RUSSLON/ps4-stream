@@ -23,6 +23,10 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
 #sub-menu{position:absolute;right:30px;bottom:89px;border:1px solid #4e5c7a;border-radius:14px;padding:12px;min-width:215px;background:#171f35;box-shadow:0 14px 32px #000b;display:none}
 #sub-menu.show{display:block}#sub-menu .menu-title{font-size:12px;letter-spacing:1.5px;color:#aab5d4;margin:5px 5px 9px}
 #sub-menu button{display:block;text-align:left;margin:4px 0;width:100%;font-size:15px;height:40px}
+/* Auto-hide playback chrome after inactivity. Keep captions visible. */
+#head,#bar,#newcode{opacity:1;visibility:visible;transition:opacity .25s ease,visibility 0s linear 0s}
+#app.ui-hidden #head,#app.ui-hidden #bar,#app.ui-hidden #newcode{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .25s ease,visibility 0s linear .25s}
+#app.ui-hidden{cursor:none}
 #newcode{position:absolute;top:19px;right:25px;color:#c8bdff;font:bold 11px Arial,sans-serif;text-decoration:none;z-index:4;letter-spacing:1px}#message{position:absolute;top:17%;left:10%;right:10%;text-align:center;color:#ffd4d7;font-size:16px;font-weight:bold;text-shadow:0 2px 6px #000}
 @media(max-width:750px){#name{font-size:18px}#bar{left:2%;right:2%;padding:12px}#actions button{min-width:40px;padding:0 8px}#clock{font-size:12px}#caption{font-size:20px}}
 </style>
@@ -53,7 +57,20 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
   'use strict';
   function get(id){return document.getElementById(id)}
   var data; try{data=JSON.parse(get('ps4-payload').textContent)}catch(e){get('message').textContent='Ошибка данных';return}
-  var video=get('video'), playing=get('play'),seek=get('seek'),empty=get('empty'),caption=get('caption'),subMenu=get('sub-menu');
+  var video=get('video'), playing=get('play'),seek=get('seek'),empty=get('empty'),caption=get('caption'),subMenu=get('sub-menu'),app=get('app');
+  var hideTimer=null, hideDelay=3000;
+  function cancelHide(){if(hideTimer!==null){clearTimeout(hideTimer);hideTimer=null}}
+  function canHide(){return !video.paused&&!video.ended&&!seek.getAttribute('data-drag')&&subMenu.className!=='show'}
+  function hideControls(){hideTimer=null;if(canHide())app.className='ui-hidden'}
+  function showControls(){
+    app.className='';cancelHide();
+    if(canHide())hideTimer=setTimeout(hideControls,hideDelay);
+  }
+  // PS4's browser can use a controller as a pointer or keyboard.
+  document.addEventListener('mousemove',showControls,false);
+  document.addEventListener('mousedown',showControls,false);
+  document.addEventListener('touchstart',showControls,false);
+  document.addEventListener('keydown',showControls,false);
   get('name').textContent=data.title||'Видео';get('quality').textContent=data.quality||'';
   video.src=data.url;video.load();
   function fmt(sec){if(!isFinite(sec))return '--:--';sec=Math.max(0,Math.floor(sec));var h=Math.floor(sec/3600),m=Math.floor(sec/60)%60,s=sec%60;return (h?h+':':'')+(h?('0'+m).slice(-2):m)+':'+('0'+s).slice(-2)}
@@ -62,13 +79,13 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
     if(!seek.getAttribute('data-drag')&&isFinite(duration)&&duration>0)seek.value=String(Math.round(video.currentTime/duration*1000));
     showCaption();
   }
-  function state(){playing.textContent=video.paused?'▶':'❚❚';empty.style.display=video.paused&&video.currentTime===0?'block':'none';progress()}
+  function state(){playing.textContent=video.paused?'▶':'❚❚';empty.style.display=video.paused&&video.currentTime===0?'block':'none';progress();showControls()}
   function toggle(){get('message').textContent='';if(video.paused){var p=video.play();if(p&&p.catch)p.catch(function(){get('message').textContent='Не удалось начать воспроизведение. Проверь поддержку формата и доступность прямой ссылки на PS4.'})}else video.pause()}
   playing.onclick=toggle;video.onclick=toggle;
   get('back').onclick=function(){try{video.currentTime=Math.max(0,video.currentTime-10)}catch(e){}};
   get('forward').onclick=function(){try{video.currentTime=Math.min(isFinite(video.duration)?video.duration:1e14,video.currentTime+10)}catch(e){}};
-  seek.oninput=function(){seek.setAttribute('data-drag','yes')};
-  seek.onchange=function(){var duration=video.duration;if(isFinite(duration)&&duration>0)video.currentTime=Number(seek.value)*duration/1000;seek.removeAttribute('data-drag')};
+  seek.oninput=function(){seek.setAttribute('data-drag','yes');showControls()};
+  seek.onchange=function(){var duration=video.duration;if(isFinite(duration)&&duration>0)video.currentTime=Number(seek.value)*duration/1000;seek.removeAttribute('data-drag');showControls()};
   get('full').onclick=function(){
     var app=get('app');var req=app.requestFullscreen||app.webkitRequestFullscreen||app.mozRequestFullScreen;
     if(req){try{req.call(app)}catch(e){}}else if(video.webkitEnterFullscreen){try{video.webkitEnterFullscreen()}catch(e){}}
@@ -97,10 +114,10 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
     for(var i=Math.max(0,high-2);i<=high&&i<list.length;i++)if(list[i].start<=t&&list[i].end>=t){found=list[i].text;break}
     caption.textContent=found;
   }
-  function chooseTrack(index){selected=index;subMenu.className='';get('cc').className=index?'active':'';showCaption()}
+  function chooseTrack(index){selected=index;subMenu.className='';get('cc').className=index?'active':'';showCaption();showControls()}
   var subItems=get('sub-items');for(var j=0;j<tracks.length;j++)(function(idx){var b=document.createElement('button');b.textContent=tracks[idx].lang;b.onclick=function(){chooseTrack(idx)};subItems.appendChild(b)})(j);
   get('cc').className=selected?'active':'';
-  get('cc').onclick=function(){subMenu.className=subMenu.className==='show'?'':'show'};
+  get('cc').onclick=function(){subMenu.className=subMenu.className==='show'?'':'show';showControls()};
   video.addEventListener('timeupdate',progress);video.addEventListener('loadedmetadata',progress);video.addEventListener('durationchange',progress);
   video.addEventListener('play',state);video.addEventListener('pause',state);video.addEventListener('ended',state);
   video.addEventListener('error',function(){var code=video.error&&video.error.code;get('message').textContent='Видео не открылось (код '+code+'). Возможно, PS4 не поддерживает кодек, CDN требует Referer/cookie или ссылка истекла.'});
@@ -108,7 +125,7 @@ button.primary{background:#7462ed;border-color:#a293ff}button.active{border-colo
     if(key===' '||key==='Enter'||key===32||key===13){if(document.activeElement.tagName!=='BUTTON'&&document.activeElement.tagName!=='INPUT'){e.preventDefault();toggle()}}
     else if(key==='ArrowLeft'||key===37)get('back').click();else if(key==='ArrowRight'||key===39)get('forward').click();
     else if(key==='f'||key==='F'||key===70)get('full').click();
-    else if(key==='Escape'||key===27)subMenu.className='';
+    else if(key==='Escape'||key===27){subMenu.className='';showControls()}
   });
   state();
 })();
